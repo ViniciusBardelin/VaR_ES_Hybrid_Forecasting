@@ -170,14 +170,14 @@ sum(df_oos$Return < df_oos$VaR_GAS_5)/2846 # [1] 0.04884048
 # HAR
 
 # InS
-RV <- df$RV_APPLE
+RV <- as.xts(df$RV_APPLE, order.by = df$DATE)
 
-RV_ins <- df$RV_APPLE[1:2500]
+RV_ins <- RV[1:2500]
 
 sigmaHAR_completo <- matrix(NA_real_, nrow = n_tot, ncol = 1,
                           dimnames = list(NULL, c("HAR")))
 
-fit_HAR <- HARmodel(APPL, periods = c(1,5,22), RVest = c("rCov"), 
+fit_HAR <- HARmodel(RV_ins, periods = c(1,5,22), RVest = c("rCov"), 
          type = "HAR", h = 1, transform = NULL, inputType = "RM")
 
 sigmaHAR_completo[23:n_ins, "HAR"] <- fit_HAR$fitted.values
@@ -187,22 +187,23 @@ ES_1 <- ES_5 <- VaR_1 <- VaR_5 <- sigmaHAR <- matrix(0, ncol = 1, nrow = n_oos, 
 r_oos <- c()
 for (i in 1:n_oos) {
   print(i)
-  rv_window <- rv[i:(i + n_ins - 1)]
+  rv_window <- as.xts(RV[i:(i + n_ins - 1)])
 
   fit_HAR <- HARmodel(rv_window, periods = c(1,5,22), RVest = c("rCov"), 
                 type = "HAR", h = 1, transform = NULL, inputType = "RM")
   
   sigmaHAR[i, "HAR"] <- predict(fit_HAR)
   
-  sigmaHAR_completo[i + n_ins, "HAR"] <- fit_HAR$fitted.values
+  #sigmaHAR_completo[i + n_ins, "HAR"] <- fit_HAR$fitted.values
+  sigmaHAR_completo[i + n_ins, "HAR"] <- as.numeric(tail(fit_HAR$fitted.values, 1))
   
-  res_HAR <- fit_HAR$residuals
+  res_HAR <- as.numeric(tail(fit_HAR$residuals, 1))
 
-  VaR_1[i, "HAR"] = mu + sqrt(sigma2[i, "GARCH"]) * quantile(res_HAR, 0.01)
+  VaR_1[i, "HAR"] = mu + sqrt(sigmaHAR[i, "HAR"]) * quantile(res_HAR, 0.01)
   ES_1[i, "HAR"] <- mean(returns_window[returns_window < VaR_1[i, "HAR"]])
 
-
-  VaR_5[i, "HAR"] = mu + sqrt(sigma2[i, "GARCH"]) * quantile(res_GARCH, 0.05)
+  # tirar sqrt?
+  VaR_5[i, "HAR"] = mu + sqrt(sigmaHAR[i, "HAR"]) * quantile(res_HAR, 0.05)
   ES_5[i, "HAR"] <- mean(returns_window[returns_window < VaR_5[i, "HAR"]])
   
   r_oos[i] <- returns[i + n_ins]
