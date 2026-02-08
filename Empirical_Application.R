@@ -154,16 +154,12 @@ write.csv(df_oos, "oos_data.csv", row.names = FALSE)
 
 # Check VaR 1%
 sum(df_oos$Return < df_oos$VaR_GARCH_1)/2846 # [1] 0.01124385
-
 sum(df_oos$Return < df_oos$VaR_MSGARCH_1)/2846 # [1] 0.01089248
-
 sum(df_oos$Return < df_oos$VaR_GAS_1)/2846 # [1] 0.00983837
 
 # Check VaR 5%
 sum(df_oos$Return < df_oos$VaR_GARCH_5)/2846 # [1] 0.05165144
-
 sum(df_oos$Return < df_oos$VaR_MSGARCH_5)/2846 # [1] 0.05411103
-
 sum(df_oos$Return < df_oos$VaR_GAS_5)/2846 # [1] 0.04884048
 
 ###########
