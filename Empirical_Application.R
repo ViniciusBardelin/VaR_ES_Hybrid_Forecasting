@@ -259,6 +259,6 @@ df_oos_HAR <- data.frame(
 
 write.csv(df_oos_HAR, "oos_HAR_data.csv", row.names = FALSE)
 
-# Check VaR RES3
+# Check VaR
 sum(df_oos_HAR$Return < df_oos_HAR$VaR_HAR_1)/2846 # 0.01405481
 sum(df_oos_HAR$Return < df_oos_HAR$VaR_HAR_5)/2846 # 0.05551651
