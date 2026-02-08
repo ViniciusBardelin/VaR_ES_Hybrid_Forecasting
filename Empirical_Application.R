@@ -153,18 +153,18 @@ df_oos <- data.frame(
 write.csv(df_oos, "oos_data.csv", row.names = FALSE)
 
 # Check VaR 1%
-sum(df_oos$Return < df_oos$VaR_GARCH_1)/2846 # 0.01124385
+sum(df_oos$Return < df_oos$VaR_GARCH_1)/2846 # [1] 0.01124385
 
-sum(df_oos$Return < df_oos$VaR_MSGARCH_1)/2846 # 0.01089248
+sum(df_oos$Return < df_oos$VaR_MSGARCH_1)/2846 # [1] 0.01089248
 
-sum(df_oos$Return < df_oos$VaR_GAS_1)/2846 # 0.00983837
+sum(df_oos$Return < df_oos$VaR_GAS_1)/2846 # [1] 0.00983837
 
 # Check VaR 5%
-sum(df_oos$Return < df_oos$VaR_GARCH_5)/2846 # 0.05165144
+sum(df_oos$Return < df_oos$VaR_GARCH_5)/2846 # [1] 0.05165144
 
-sum(df_oos$Return < df_oos$VaR_MSGARCH_5)/2846 # 0.05411103
+sum(df_oos$Return < df_oos$VaR_MSGARCH_5)/2846 # [1] 0.05411103
 
-sum(df_oos$Return < df_oos$VaR_GAS_5)/2846 # 0.04884048
+sum(df_oos$Return < df_oos$VaR_GAS_5)/2846 # [1] 0.04884048
 
 ###########
 #   HAR   #
@@ -210,18 +210,16 @@ for (i in 1:n_oos) {
   
   sigmaHAR_completo[i + n_ins, "HAR"] <- as.numeric(tail(fit_HAR$fitted.values, 1))
   
-  # --------- resíduos padronizados corretos (na escala de volatilidade) ----------
-  rv_hat_is <- as.numeric(na.omit(fit_HAR$fitted.values))  # VARIÂNCIA ajustada; tamanho n_ins-22
-  r_c_is    <- returns_c[23:n_ins]                         # alinha com os fitted (remove 22 primeiros)
+  rv_hat_is <- as.numeric(na.omit(fit_HAR$fitted.values))  
+  r_c_is    <- returns_c[23:n_ins]                         
   
   eps <- 1e-12
-  sigma_hat_is <- sqrt(pmax(rv_hat_is, eps))               # VOLATILIDADE ajustada (desvio padrão)
+  sigma_hat_is <- sqrt(pmax(rv_hat_is, eps))               
   
-  res_HAR <- r_c_is / sigma_hat_is                         # z_t padronizado
+  res_HAR <- r_c_is / sigma_hat_is                    
   
   q01 <- quantile(res_HAR, 0.01, na.rm = TRUE)
   q05 <- quantile(res_HAR, 0.05, na.rm = TRUE)
-  
   
   sigma_oos <- sqrt(as.numeric(sigmaHAR[i, "HAR"]))        
   
