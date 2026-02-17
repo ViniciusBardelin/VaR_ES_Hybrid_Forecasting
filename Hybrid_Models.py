@@ -7,6 +7,10 @@ from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import tensorflow as tf
+import keras
+from keras.models import Sequential
+from keras.layers import LSTM, Dropout, Dense
+from keras.optimizers import Adam
 from tensorflow.keras.optimizers import Adam
 from tensorflow import keras
 from tensorflow.keras.callbacks import EarlyStopping
@@ -31,8 +35,9 @@ df = df.sort_values('Date').reset_index(drop=True)
 
 window_size   = 22
 initial_train = 2500
-retrain_every = 252
-feature_cols = ['Sigma2_GARCH']   
+retrain_every = 100
+feature_cols = ['Sigma2_GARCH','RV_lag1','RV_lag5']   
+#feature_cols = ['Sigma2_GARCH']
 target_col   = 'RV_APPLE'         
 
 features = df[feature_cols].values.astype(np.float32)      
@@ -53,7 +58,7 @@ def make_windows(X_arr, y_arr, size):
     for i in range(size, len(X_arr)):
         X.append(X_arr[i-size:i, :])      
         y.append(y_arr[i])                
-    X = np.array(X, dtype=np.float32)     )
+    X = np.array(X, dtype=np.float32)
     y = np.array(y, dtype=np.float32).reshape(-1, 1)
     return X, y
 
@@ -82,29 +87,63 @@ def build_model(input_shape):
     model = keras.models.Sequential([
         LSTM(
             units=16,
-            activation='relu',
-            recurrent_dropout=0.35396854431693076,
+            activation='tanh',
+            dropout = 0.2,
             input_shape=input_shape
         ),
-        Dense(1, activation='linear')
+        Dense(1, activation='relu')
     ])
 
     model.compile(
-        optimizer=Adam(learning_rate=0.01),
+        optimizer=Adam(learning_rate=0.001),
         loss='mse',
         metrics=['mse']
     )
     return model
+
+'''def build_model(input_shape):
+    model = keras.models.Sequential([
+        LSTM(16, activation='tanh', return_sequences=False, input_shape=input_shape),
+        Dropout(0.2),
+        Dense(1, activation='relu')
+    ])
+    model.compile(optimizer=Adam(learning_rate=0.001), loss='mse', metrics=['mse'])
+    return model'''
+
+'''def build_model(input_shape):
+    model = keras.models.Sequential([
+        LSTM(16, return_sequences=True, input_shape=input_shape),
+        Dropout(0.4),
+        LSTM(8, return_sequences=False),
+        Dense(1, activation='relu')
+    ])
+    model.compile(optimizer=Adam(learning_rate=0.001), loss='mse', metrics=['mse'])
+    return model'''
+
+'''def build_model(input_shape):
+    model = Sequential([
+        LSTM(16, activation="tanh", input_shape=input_shape),
+        Dropout(0.4),
+        Dense(1, activation="relu")
+    ])
+
+    model.compile(
+        optimizer=Adam(learning_rate=0.001),
+        loss="mse",
+        metrics=["mse"]
+    )
+    return model'''
 
 # Initial train
 model = build_model((window_size, len(feature_cols)))
 history = model.fit(
     X_tr, y_tr,
     epochs=100,
-    batch_size=32,
+    batch_size=16,
     shuffle=False,
     validation_data=(X_val, y_val),
-    callbacks=[es, rlr],
+    callbacks=[es],
+    #callbacks=[es, rlr],
     verbose=1
 )
 
@@ -145,12 +184,12 @@ ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(mdates.AutoDateLocator(
 plt.tight_layout()
 plt.show()
 
-dates_ins = df['Date'].iloc[window_size:initial_train].reset_index(drop=True)
+#dates_ins = df['Date'].iloc[window_size:initial_train].reset_index(drop=True)
 
-os.makedirs("Res", exist_ok=True)
-pd.DataFrame({"Date": dates_ins, "Residual": resid_ins}).to_csv(
-    "Res/GARCH_LSTM_residuals.csv", index=False
-)
+#os.makedirs("Res", exist_ok=True)
+#pd.DataFrame({"Date": dates_ins, "Residual": resid_ins}).to_csv(
+#    "Res/GARCH_LSTM_residuals.csv", index=False
+#)
 
 # Walk-forward OoS
 preds, pred_dates = [], []
@@ -177,10 +216,11 @@ for t in range(initial_train, N):
         model.fit(
             X_new, y_new,
             epochs=100,
-            batch_size=32,
+            batch_size=16,
+            #batch_size=32,
             shuffle=False,
             validation_split=0.1,   
-            callbacks=[es, rlr],
+            callbacks=[es],
             verbose=1
         )
 
@@ -215,7 +255,7 @@ plt.tight_layout()
 plt.show()
 
 # Save CSV
-df_pred.to_csv("DF_PREDS/GARCH_LSTM_T101_tst_carlos_1.csv", index=False)
+#df_pred.to_csv("DF_PREDS/GARCH_LSTM_T101_tst_carlos_1.csv", index=False)
 
 
 # VaR/ES  
@@ -236,7 +276,7 @@ q_1 = np.quantile(resid_ins, 0.01)
 q_5 = np.quantile(resid_ins, 0.05)
 
 n_oos = len(sigma2_oos)
-
+n_ins = 2500
 VaR_1 = np.empty(n_oos)
 VaR_5 = np.empty(n_oos)
 ES_1  = np.empty(n_oos)
@@ -271,16 +311,81 @@ df_oos = pd.DataFrame({
 hit_1 = (df_oos["Return"] < df_oos["VaR_1"]).mean()
 hit_5 = (df_oos["Return"] < df_oos["VaR_5"]).mean()
 
-print("Check VaR 1%:", hit_1, "|", (df_oos["Return"] < df_oos["VaR_1"]).sum(), "/", n)
-print("Check VaR 5%:", hit_5, "|", (df_oos["Return"] < df_oos["VaR_5"]).sum(), "/", n)
+print(f"Check VaR 1%: {100 * hit_1:.2f}%")
+print(f"Check VaR 5%: {100 * hit_5:.2f}%")
 
+'''
+i = 0
+pred_dates = pd.to_datetime(pred_dates)  # garante datetime
+print("pred_date:  ", pred_dates[i])
+print("return_date:", df["Date"].iloc[n_ins + i])
+print("return:     ", returns[n_ins + i])
+
+
+print("ret mean/std:", returns[:n_ins].mean(), returns[:n_ins].std())
+print("sigma_oos mean:", np.sqrt(np.maximum(sigma2_oos,1e-12)).mean())
+print("resid_ins std:", np.std(resid_ins))
+
+
+rv_ins = df[target_col].values[:n_ins]          # RV_APPLE (variância realizada)
+print("sqrt(RV) mean:", np.sqrt(np.maximum(rv_ins, 1e-12)).mean())
+print("return std:", returns[:n_ins].std())
+
+print("return min/max:", returns[:n_ins].min(), returns[:n_ins].max())
+
+
+returns = df[returns_col].to_numpy(float)
+
+n_ins = 2500
+n_oos = len(df_pred)
+
+pred_dates = pd.to_datetime(df_pred["Date"]).reset_index(drop=True)
+sigma2_oos = df_pred["Prediction"].to_numpy(float)
+
+# distribuição empírica dos resíduos (FHS)
+q_1 = np.quantile(resid_ins, 0.01)
+q_5 = np.quantile(resid_ins, 0.05)
+e_1 = resid_ins[resid_ins <= q_1].mean()
+e_5 = resid_ins[resid_ins <= q_5].mean()
+
+# mu não-walkforward (fixo)
+mu = returns[:n_ins].mean()
+sig = np.sqrt(np.maximum(sigma2_oos, 1e-12))
+
+VaR_1 = mu + sig * q_1
+VaR_5 = mu + sig * q_5
+ES_1  = mu + sig * e_1
+ES_5  = mu + sig * e_5
+
+r_oos = returns[n_ins:n_ins+n_oos]
+
+df_oos = pd.DataFrame({
+    "Date": pred_dates,
+    "Return": r_oos,
+    "VaR_1": VaR_1,
+    "VaR_5": VaR_5,
+    "ES_1": ES_1,
+    "ES_5": ES_5
+})
+
+hit_1 = (df_oos["Return"] < df_oos["VaR_1"]).mean()
+hit_5 = (df_oos["Return"] < df_oos["VaR_5"]).mean()
+
+print(f"Check VaR 1%: {100 * hit_1:.2f}%")
+print(f"Check VaR 5%: {100 * hit_5:.2f}%")
+
+#Check VaR 1%: 1.16%
+#Check VaR 5%: 4.81%
+
+
+'''
 
 # ————— Gráfico final —————
 plt.figure(figsize=(14, 6))
 plt.plot(df_oos['Date'], df_oos['VaR_1'],
-         label='VaR 1%', color='tab:blue', linewidth=1, alpha=0.5)
+         label='VaR 1%', color='red', linewidth=1, alpha=0.5)
 plt.plot(df_oos['Date'], df_oos['Return'],
-         label='Returns',color='tab:red', linewidth=1, alpha=0.5)
+         label='Returns',color='black', linewidth=1, alpha=0.5)
 #plt.plot(df_pred['Date'], df_pred['Prediction'],
 #         label='GARCH-LSTM', color='tab:green', linewidth=2)
 plt.title("VaR 1% - GARCH-LSTM", fontsize=14)
