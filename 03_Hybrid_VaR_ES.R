@@ -7,7 +7,6 @@ setorder(df_full, Date)
 
 returns <- as.numeric(df_full$Returns)
 sigma2_hat <- as.numeric(df_full$RV_hat)
-#sigma2_hat <- as.numeric(df_full$RV_true)
 
 n_ins <- sum(df_full$Set == "INS")
 n_oos <- sum(df_full$Set == "OOS")  
@@ -62,7 +61,6 @@ for (i in 1:n_oos) {
     returns_c <- as.numeric(returns_c)
   }
 
-  # sigma2 na janela e no "próximo dia" (i+n_ins)
   sigma2_window <- sigma2_hat[i:(i + n_ins - 1)]
   sigma2_next   <- sigma2_hat[i + n_ins]
   
