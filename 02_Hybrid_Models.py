@@ -42,7 +42,7 @@ target_rv = df[[target_col]].values.astype(np.float32).flatten()
 dates = df["Date"]
 N = len(df)
 
-log_target = np.log(np.maximum(target_rv, eps)).astype(np.float32)  # (N,)
+log_target = np.log(np.maximum(target_rv, eps)).astype(np.float32)  
 
 scaler_X = MinMaxScaler(feature_range=(0, 1))
 scaler_X.fit(features[:initial_train])
@@ -66,7 +66,6 @@ def make_windows(X_arr, y_arr, size):
 
 @tf.function
 def qlike_loss_from_scaled_log(y_true_scaled, y_pred_scaled):
-    # desfaz escala -> log(RV)
     y_true_log = y_true_scaled * Y_STD + Y_MEAN
     y_pred_log = y_pred_scaled * Y_STD + Y_MEAN
 
@@ -75,7 +74,6 @@ def qlike_loss_from_scaled_log(y_true_scaled, y_pred_scaled):
 
     rv_hat = tf.maximum(rv_hat, tf.constant(eps, dtype=rv_hat.dtype))
 
-    # QLIKE (forma comum para variância)
     loss = rv_true / rv_hat + tf.math.log(rv_hat)
     return tf.reduce_mean(loss)
 
@@ -142,7 +140,6 @@ plt.tight_layout()
 plt.show()
 
 def pred_scaledlog_to_rv(p_scaledlog):
-    # p_scaledlog: (n,1) em scaled_log_RV
     p_log = scaler_y.inverse_transform(p_scaledlog)[:, 0]   
     rv = np.exp(np.clip(p_log, -50, 50))
     rv = np.maximum(rv, eps)
@@ -182,7 +179,6 @@ preds, pred_dates = [], []
 
 for t in range(initial_train, N):
 
-    # re-treina em blocos (expanding window), sem refit dos scalers
     if (t - initial_train) % retrain_every == 0:
         X_new, y_new = make_windows(
             scaled_features[:t],
