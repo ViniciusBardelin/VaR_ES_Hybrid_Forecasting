@@ -247,4 +247,3 @@ df_full = (
 )
 
 df_full.to_csv("GARCH_LSTM_2.csv", index=False)
-print("Saved:", "GARCH_LSTM_2.csv", "| shape:", df_full.shape)
