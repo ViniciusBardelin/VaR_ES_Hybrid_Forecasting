@@ -153,7 +153,8 @@ tuner.search(
     validation_data=(X_va, y_va),
     epochs=100,
     callbacks=callbacks,
-    verbose=1
+    verbose=1,
+    shuffle = False
 )
 
 best_hp = tuner.get_best_hyperparameters(1)[0]
@@ -163,3 +164,30 @@ for k, v in best_hp.values.items():
 
 best_model = tuner.get_best_models(1)[0]
 best_model.summary()
+
+
+''' APPLE
+Best HPs:
+num_layers: 2
+dropout: 0.2
+learning_rate: 0.001
+units_lstm_1: 64
+batch_size: 16
+units_lstm_2: 64
+units_lstm_3: 16
+Model: "sequential"
+┌─────────────────────────────────┬────────────────────────┬───────────────┐
+│ Layer (type)                    │ Output Shape           │       Param # │
+├─────────────────────────────────┼────────────────────────┼───────────────┤
+│ lstm (LSTM)                     │ (None, 22, 64)         │        17,920 │
+├─────────────────────────────────┼────────────────────────┼───────────────┤
+│ lstm_1 (LSTM)                   │ (None, 64)             │        33,024 │
+├─────────────────────────────────┼────────────────────────┼───────────────┤
+│ dropout (Dropout)               │ (None, 64)             │             0 │
+├─────────────────────────────────┼────────────────────────┼───────────────┤
+│ dense (Dense)                   │ (None, 1)              │            65 │
+└─────────────────────────────────┴────────────────────────┴───────────────┘
+ Total params: 51,009 (199.25 KB)
+ Trainable params: 51,009 (199.25 KB)
+ Non-trainable params: 0 (0.00 B)
+'''
