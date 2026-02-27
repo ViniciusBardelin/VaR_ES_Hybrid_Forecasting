@@ -94,13 +94,14 @@ def qlike_loss_from_scaled_log(y_true_scaled, y_pred_scaled):
 
 def build(hp):
     num_layers = hp.Int("num_layers", 1, 3, default=1)
-    dropout_rate = hp.Choice("dropout", [0.0, 0.1, 0.2, 0.3, 0.4])
+    dropout_rate = hp.Choice("dropout", [0.0, 0.1, 0.2])
     lr = hp.Choice("learning_rate", [1e-3, 5e-4, 1e-4])
 
     model = Sequential()
 
     for i in range(num_layers):
-        units_i = hp.Choice(f"units_lstm_{i+1}", [8, 16, 32, 64])
+        #units_i = hp.Choice(f"units_lstm_{i+1}", [8, 16, 32, 64])
+        units_i = hp.Choice(f"units_lstm_{i+1}", [8, 16, 32])
         return_seq = (i < num_layers - 1)
 
         if i == 0:
@@ -137,7 +138,7 @@ class MyRandomTuner(kt.tuners.RandomSearch):
 tuner = MyRandomTuner(
     hypermodel=build,
     objective=kt.Objective("val_loss", direction="min"),
-    max_trials=80,
+    max_trials=50,
     executions_per_trial=3,
     directory=r"C:\keras_tuning",
     project_name="rs_qlike_logrv",
@@ -189,5 +190,29 @@ Model: "sequential"
 └─────────────────────────────────┴────────────────────────┴───────────────┘
  Total params: 51,009 (199.25 KB)
  Trainable params: 51,009 (199.25 KB)
+ Non-trainable params: 0 (0.00 B)
+'''
+
+''' CONSIDERANDO APENAS [8,16,32] e [0.0,0.1,0.2]
+Best HPs:
+num_layers: 1
+dropout: 0.2
+learning_rate: 0.0005
+units_lstm_1: 16
+batch_size: 16
+units_lstm_2: 16
+units_lstm_3: 32
+Model: "sequential"
+┌─────────────────────────────────┬────────────────────────┬───────────────┐
+│ Layer (type)                    │ Output Shape           │       Param # │
+├─────────────────────────────────┼────────────────────────┼───────────────┤
+│ lstm (LSTM)                     │ (None, 16)             │         1,408 │
+├─────────────────────────────────┼────────────────────────┼───────────────┤
+│ dropout (Dropout)               │ (None, 16)             │             0 │
+├─────────────────────────────────┼────────────────────────┼───────────────┤
+│ dense (Dense)                   │ (None, 1)              │            17 │
+└─────────────────────────────────┴────────────────────────┴───────────────┘
+ Total params: 1,425 (5.57 KB)
+ Trainable params: 1,425 (5.57 KB)
  Non-trainable params: 0 (0.00 B)
 '''
