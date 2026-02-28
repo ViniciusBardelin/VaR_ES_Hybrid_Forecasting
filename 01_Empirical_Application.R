@@ -232,7 +232,7 @@ for (i in 1:n_oos) {
 df_sigmaHAR_completo <- data.frame(
   Date = df$DATE,
   Returns = df$RETURNS_APPLE,
-  Sigma2_GARCH = sigmaHAR_completo[, "HAR"],
+  Sigma2_HAR = sigmaHAR_completo[, "HAR"],
   RV_APPLE = df$RV_APPLE
 )
 
