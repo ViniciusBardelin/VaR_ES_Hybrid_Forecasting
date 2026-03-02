@@ -11,9 +11,13 @@ library(xts)
 library(tidyr)
 library(highfrequency)
 
-df <- read_excel("APPLE_DATA.xlsx")
+#df <- read_excel("APPLE_DATA.xlsx")
+df <- read_excel("AMZN_DATA.xlsx")
 df$DATE <- as.Date(df$DATE)
-returns <- df$RETURNS_APPLE
+#returns <- df$RETURNS_APPLE
+returns <- df$RETURNS_AMZN
+
+df <- df[!apply(df, 1, function(r) any(as.character(r) == "-")), ]
 
 n_ins <- 2500
 n_tot <- length(returns)
@@ -83,15 +87,15 @@ for (i in 1:n_oos) {
   
   sigma2[i, "GARCH"] <- ugarchforecast(fit_GARCH, n.ahead = 1)@forecast$sigmaFor[1]^2
   sigma2[i, "MSGARCH"] <- predict(fit_MSGARCH , nahead = 1)$vol^2
-  sigma2[i, "GAS"] <- UniGASFor(fit_GAS, H = 1)@Forecast$PointForecast[, 2] * fit_GAS@GASDyn$mTheta[3, 1] /(fit_GAS@GASDyn$mTheta[3, 1] - 2)
+  sigma2[i, "GAS"] <- UniGASFor(fit_GAS, H = 1)@Forecast$PointForecast[, 2] * fit_GAS@GASDyn$mTheta[3, 1] / (fit_GAS@GASDyn$mTheta[3, 1] - 2)
   
   sigma2_completo[i + n_ins, "GARCH"] <- sigma(fit_GARCH)[n_ins]^2
   sigma2_completo[i + n_ins, "GAS"] <- fit_GAS@GASDyn$mTheta[2, n_ins] * fit_GAS@GASDyn$mTheta[3, 1] / (fit_GAS@GASDyn$mTheta[3, 1] - 2)
   sigma2_completo[i + n_ins, "MSGARCH"] <- Volatility(fit_MSGARCH)[n_ins]^2
   
   res_GARCH <- as.numeric(returns_c/sigma(fit_GARCH))
-  res_GAS <-   as.numeric(returns_c/sqrt(fit_GAS@GASDyn$mTheta[2, 1:n_ins] * fit_GAS@GASDyn$mTheta[3, 1] /(fit_GAS@GASDyn$mTheta[3, 1] - 2)))
-  res_MSGARCH <- as.numeric(returns_c/ Volatility(fit_MSGARCH))
+  res_GAS <-   as.numeric(returns_c/sqrt(fit_GAS@GASDyn$mTheta[2, 1:n_ins] * fit_GAS@GASDyn$mTheta[3, 1] / (fit_GAS@GASDyn$mTheta[3, 1] - 2)))
+  res_MSGARCH <- as.numeric(returns_c/Volatility(fit_MSGARCH))
   
   VaR_1[i, "GARCH"] = mu + sqrt(sigma2[i, "GARCH"]) * quantile(res_GARCH, 0.01)
   VaR_1[i, "GAS"] = mu + sqrt(sigma2[i, "GAS"] )* quantile(res_GAS, 0.01)
@@ -116,14 +120,16 @@ for (i in 1:n_oos) {
 # InS
 df_sigma2_completo <- data.frame(
   Date = df$DATE,
-  Returns = df$RETURNS_APPLE,
+  #Returns = df$RETURNS_APPLE,
+  Returns = df$RETURNS_AMZN,
   Sigma2_GARCH = sigma2_completo[, "GARCH"],
   Sigma2_GAS = sigma2_completo[, "GAS"],
   Sigma2_MSGARCH = sigma2_completo[, "MSGARCH"],
-  RV_APPLE = df$RV_APPLE
+  #RV_APPLE = df$RV_APPLE
+  RV_AMZN = df$RV_AMZN
 )
 
-write.csv(df_sigma2_completo, "ins_data.csv", row.names = FALSE)
+write.csv(df_sigma2_completo, "AMZN_ins_data.csv", row.names = FALSE)
 
 # OoS
 df_oos <- data.frame(
@@ -147,27 +153,29 @@ df_oos <- data.frame(
   ES_MSGARCH_5 = ES_5[, "MSGARCH"],
   ES_GAS_5 = ES_5[, "GAS"],
   
-  RV_APPLE = df$RV_APPLE[(n_ins + 1):n_tot]
+  #RV_APPLE = df$RV_APPLE[(n_ins + 1):n_tot]
+  RV_AMZN = df$RV_AMZN[(n_ins + 1):n_tot]
 )
 
-write.csv(df_oos, "oos_data.csv", row.names = FALSE)
+write.csv(df_oos, "AMZN_oos_data.csv", row.names = FALSE)
 
 # Check VaR 1%
-sum(df_oos$Return < df_oos$VaR_GARCH_1)/2846 # [1] 0.01124385
-sum(df_oos$Return < df_oos$VaR_MSGARCH_1)/2846 # [1] 0.01089248
-sum(df_oos$Return < df_oos$VaR_GAS_1)/2846 # [1] 0.00983837
+sum(df_oos$Return < df_oos$VaR_GARCH_1)/nrow(df_oos)
+sum(df_oos$Return < df_oos$VaR_MSGARCH_1)/nrow(df_oos) 
+sum(df_oos$Return < df_oos$VaR_GAS_1)/nrow(df_oos) 
 
 # Check VaR 5%
-sum(df_oos$Return < df_oos$VaR_GARCH_5)/2846 # [1] 0.05165144
-sum(df_oos$Return < df_oos$VaR_MSGARCH_5)/2846 # [1] 0.05411103
-sum(df_oos$Return < df_oos$VaR_GAS_5)/2846 # [1] 0.04884048
+sum(df_oos$Return < df_oos$VaR_GARCH_5)/nrow(df_oos) 
+sum(df_oos$Return < df_oos$VaR_MSGARCH_5)/nrow(df_oos) 
+sum(df_oos$Return < df_oos$VaR_GAS_5)/nrow(df_oos) 
 
 ###########
 #   HAR   #
 ###########
 
 # InS
-RV <- as.xts(df$RV_APPLE, order.by = df$DATE)
+#RV <- as.xts(df$RV_APPLE, order.by = df$DATE)
+RV <- as.xts(df$RV_AMZN, order.by = df$DATE)
 
 RV_ins <- RV[1:2500]
 
@@ -231,12 +239,14 @@ for (i in 1:n_oos) {
 # InS
 df_sigmaHAR_completo <- data.frame(
   Date = df$DATE,
-  Returns = df$RETURNS_APPLE,
+  #Returns = df$RETURNS_APPLE,
+  Returns = df$RETURNS_AMZN,
   Sigma2_HAR = sigmaHAR_completo[, "HAR"],
-  RV_APPLE = df$RV_APPLE
+  #RV_APPLE = df$RV_APPLE
+  RV_AMZN = df$RV_AMZN
 )
 
-write.csv(df_sigmaHAR_completo, "ins_HAR_data.csv", row.names = FALSE)
+write.csv(df_sigmaHAR_completo, "AMZN_ins_HAR_data.csv", row.names = FALSE)
 
 # OoS
 df_oos_HAR <- data.frame(
@@ -250,11 +260,19 @@ df_oos_HAR <- data.frame(
   VaR_HAR_5 = VaR_5[, "HAR"],
   ES_HAR_5 = ES_5[, "HAR"],
   
-  RV_APPLE = df$RV_APPLE[(n_ins + 1):n_tot]
+  #RV_APPLE = df$RV_APPLE[(n_ins + 1):n_tot]
+  RV_AMZN = df$RV_AMZN[(n_ins + 1):n_tot]
 )
 
-write.csv(df_oos_HAR, "oos_HAR_data.csv", row.names = FALSE)
+write.csv(df_oos_HAR, "AMZN_oos_HAR_data.csv", row.names = FALSE)
 
 # Check VaR
 sum(df_oos_HAR$Return < df_oos_HAR$VaR_HAR_1)/2846 # 0.01405481
 sum(df_oos_HAR$Return < df_oos_HAR$VaR_HAR_5)/2846 # 0.05551651
+
+plot(df_sigmaHAR_completo$Sigma2_HAR, type = 'l')
+plot(df_sigma2_completo$Sigma2_GARCH, type = 'l')
+plot(df_sigma2_completo$Sigma2_MSGARCH, type = 'l')
+
+mean(na.omit(df_sigmaHAR_completo$Sigma2_HAR))
+mean(na.omit(df_sigma2_completo$Sigma2_GARCH))
