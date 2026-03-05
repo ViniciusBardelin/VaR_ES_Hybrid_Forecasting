@@ -1,7 +1,9 @@
 library(data.table)
 library(ggplot2)
 
-df_full <- fread("GARCH_LSTM_2.csv")
+# se for AAPL -> AAPL_GARCH_LSTM.csv
+
+df_full <- fread("AMZN_GARCH_LSTM_10.csv")
 df_full[, Date := as.IDate(Date)]
 setorder(df_full, Date)
 
@@ -60,7 +62,7 @@ for (i in 1:n_oos) {
   } else {
     returns_c <- as.numeric(returns_c)
   }
-
+  
   sigma2_window <- sigma2_hat[i:(i + n_ins - 1)]
   sigma2_next   <- sigma2_hat[i + n_ins]
   
@@ -96,7 +98,7 @@ out <- data.table(
 out[, hit_1 := as.integer(Return < VaR_1)]
 out[, hit_5 := as.integer(Return < VaR_5)]
 
-fwrite(out, "VaR_ES_LSTM_TESTE_2.csv")
+fwrite(out, "AMZN_GARCH_LSTM_VaR_ES_10.csv")
 
 cat("\nHit rate 1%:", mean(out$hit_1, na.rm = TRUE), "\n")
 cat("Hit rate 5%:", mean(out$hit_5, na.rm = TRUE), "\n")
