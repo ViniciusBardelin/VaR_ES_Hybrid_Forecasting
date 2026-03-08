@@ -3,7 +3,7 @@ library(ggplot2)
 
 # se for AAPL -> AAPL_GARCH_LSTM.csv
 
-df_full <- fread("AMZN_GARCH_LSTM_10.csv")
+df_full <- fread("AMZN_MSGARCH_LSTM_1.csv")
 df_full[, Date := as.IDate(Date)]
 setorder(df_full, Date)
 
@@ -98,7 +98,7 @@ out <- data.table(
 out[, hit_1 := as.integer(Return < VaR_1)]
 out[, hit_5 := as.integer(Return < VaR_5)]
 
-fwrite(out, "AMZN_GARCH_LSTM_VaR_ES_10.csv")
+fwrite(out, "AMZN_MSGARCH_LSTM_VaR_ES_1.csv")
 
 cat("\nHit rate 1%:", mean(out$hit_1, na.rm = TRUE), "\n")
 cat("Hit rate 5%:", mean(out$hit_5, na.rm = TRUE), "\n")
