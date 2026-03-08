@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dropout, Dense, LayerNormalization, Bidirectional
+from tensorflow.keras.layers import LSTM, Dropout, Dense, Bidirectional
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
@@ -19,10 +19,13 @@ tf.random.set_seed(seed)
 
 window_size   = 22
 initial_train = 2500
+# initial_train = 2478 -> HAR models
 eps = 1e-12
 returns_col = "Returns"
+#target_col  = "RV_AAPL"
 target_col  = "RV_AMZN"
 
+# df = pd.read_csv("AAPL_ins_data.csv")
 df = pd.read_csv("AMZN_ins_data.csv")
 df["Date"] = pd.to_datetime(df["Date"], format="%Y-%m-%d")
 df = df.sort_values("Date").reset_index(drop=True)
@@ -102,6 +105,12 @@ def build_model(input_shape):
         LSTM(8,  activation="tanh", return_sequences=True),
         LSTM(16, activation="tanh", return_sequences=False),
         Dropout(0.2),
+        #Bidirectional(LSTM(16, return_sequences=True), input_shape=input_shape),
+        #Bidirectional(LSTM(8, return_sequences=True)),
+        #Bidirectional(LSTM(16, return_sequences=False, recurrent_dropout = 0.2)),
+        #Dropout(0.2),
+        #LSTM(64, return_sequences=True, input_shape=input_shape),
+        #LSTM(32, return_sequences=False),
         Dense(1, activation="linear")
     ])
 
