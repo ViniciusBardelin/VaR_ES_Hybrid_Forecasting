@@ -141,7 +141,7 @@ viol_rates <- df_all_raw %>%
 print(viol_rates)
 
 # Hybrid backtesting
-df_lstm <- read_csv("AMZN_GARCH_LSTM_VaR_ES_10.csv", show_col_types = FALSE) %>%
+df_lstm <- read_csv("AMZN_MSGARCH_LSTM_VaR_ES_1.csv", show_col_types = FALSE) %>%
   mutate(
     Date = ymd(Date),
     Vol2_LSTM = RV_hat,                 
