@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dropout, Dense
+from tensorflow.keras.layers import LSTM, Dropout, Dense, LayerNormalization, Bidirectional
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
@@ -19,12 +19,11 @@ tf.random.set_seed(seed)
 
 window_size   = 22
 initial_train = 2500
-retrain_every = 100
 eps = 1e-12
 returns_col = "Returns"
-target_col  = "RV_APPLE"
+target_col  = "RV_AMZN"
 
-df = pd.read_csv("ins_data.csv")
+df = pd.read_csv("AMZN_ins_data.csv")
 df["Date"] = pd.to_datetime(df["Date"], format="%Y-%m-%d")
 df = df.sort_values("Date").reset_index(drop=True)
 
@@ -35,14 +34,15 @@ df[["RV_lag1", "RV_lag5"]] = df[["RV_lag1", "RV_lag5"]].bfill()
 df["AbsRet"] = df[returns_col].abs()
 df["Ret2"]   = df[returns_col] ** 2
 
-feature_cols = ["Sigma2_GARCH", "RV_lag1", "RV_lag5", "AbsRet", "Ret2"]
+#feature_cols = ["Sigma2_GARCH", "RV_lag1", "RV_lag5", "AbsRet", "Ret2"]
+feature_cols = ["Sigma2_MSGARCH", "RV_lag1", "RV_lag5", "AbsRet", "Ret2"]
 
-features = df[feature_cols].values.astype(np.float32)             
-target_rv = df[[target_col]].values.astype(np.float32).flatten()  
-dates = df["Date"]
-N = len(df)
+features  = df[feature_cols].values.astype(np.float32)
+target_rv = df[[target_col]].values.astype(np.float32).flatten()
+dates     = df["Date"]
+N         = len(df)
 
-log_target = np.log(np.maximum(target_rv, eps)).astype(np.float32)  
+log_target = np.log(np.maximum(target_rv, eps)).astype(np.float32)
 
 scaler_X = MinMaxScaler(feature_range=(0, 1))
 scaler_X.fit(features[:initial_train])
@@ -71,13 +71,12 @@ def qlike_loss_from_scaled_log(y_true_scaled, y_pred_scaled):
 
     rv_true = tf.exp(tf.clip_by_value(y_true_log, -50.0, 50.0))
     rv_hat  = tf.exp(tf.clip_by_value(y_pred_log, -50.0, 50.0))
-
     rv_hat = tf.maximum(rv_hat, tf.constant(eps, dtype=rv_hat.dtype))
 
     loss = rv_true / rv_hat + tf.math.log(rv_hat)
     return tf.reduce_mean(loss)
 
-val_frac = 0.20
+val_frac  = 0.20
 val_start = int(initial_train * (1 - val_frac))
 
 X_tr, y_tr = make_windows(
@@ -101,15 +100,17 @@ def build_model(input_shape):
     model = Sequential([
         LSTM(16, activation="tanh", return_sequences=True, input_shape=input_shape),
         LSTM(8,  activation="tanh", return_sequences=True),
-        LSTM(8,  activation="tanh", return_sequences=False),
+        LSTM(16, activation="tanh", return_sequences=False),
         Dropout(0.2),
-        Dense(1, activation="linear")  
+        Dense(1, activation="linear")
     ])
 
     model.compile(
         optimizer=Adam(learning_rate=0.001),
         loss=qlike_loss_from_scaled_log,
         metrics=[qlike_loss_from_scaled_log]
+        
+        #loss="mse", metrics=["mse"]
     )
     return model
 
@@ -121,7 +122,7 @@ history = model.fit(
     shuffle=False,
     validation_data=(X_val, y_val),
     callbacks=[es],
-    verbose=1
+    verbose=0
 )
 
 loss = history.history.get("loss", [])
@@ -132,15 +133,15 @@ plt.figure()
 plt.plot(epochs_ran, loss, label="train loss")
 plt.plot(epochs_ran, val_loss, label="val loss")
 plt.xlabel("Epoch")
-plt.ylabel("QLIKE")
-plt.title(f"Initial training (val_frac={val_frac}): QLIKE vs val_QLIKE")
+plt.ylabel("Loss")
+plt.title(f"Initial training (val_frac={val_frac})")
 plt.legend()
 plt.grid(True, alpha=0.3)
 plt.tight_layout()
 plt.show()
 
 def pred_scaledlog_to_rv(p_scaledlog):
-    p_log = scaler_y.inverse_transform(p_scaledlog)[:, 0]   
+    p_log = scaler_y.inverse_transform(p_scaledlog)[:, 0]
     rv = np.exp(np.clip(p_log, -50, 50))
     rv = np.maximum(rv, eps)
     return rv
@@ -150,9 +151,9 @@ X_ins, _ = make_windows(
     scaled_target[:initial_train],
     window_size
 )
+p_ins_scaledlog = model.predict(X_ins, verbose=0)
+rv_hat_ins = pred_scaledlog_to_rv(p_ins_scaledlog)
 
-p_ins_scaledlog = model.predict(X_ins, verbose=0)       
-rv_hat_ins = pred_scaledlog_to_rv(p_ins_scaledlog)       
 sigma_hat_ins = np.sqrt(rv_hat_ins)
 
 returns_window = df[returns_col].values[:initial_train].astype(float)
@@ -165,9 +166,9 @@ dates_ins = df["Date"].iloc[window_size:initial_train].reset_index(drop=True)
 
 plt.figure(figsize=(12, 4))
 plt.plot(dates_ins, resid_ins, linewidth=0.8)
-plt.title("Resíduos padronizados in-sample (GARCH-LSTM | logRV + QLIKE)")
-plt.xlabel("Data")
-plt.ylabel("Resíduo")
+plt.title("Standardized residuals in-sample")
+plt.xlabel("Date")
+plt.ylabel("Residuals")
 ax = plt.gca()
 loc = mdates.AutoDateLocator()
 ax.xaxis.set_major_locator(loc)
@@ -175,32 +176,15 @@ ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(loc))
 plt.tight_layout()
 plt.show()
 
+
 preds, pred_dates = [], []
 
 for t in range(initial_train, N):
-
-    if (t - initial_train) % retrain_every == 0:
-        X_new, y_new = make_windows(
-            scaled_features[:t],
-            scaled_target[:t],
-            window_size
-        )
-
-        model.fit(
-            X_new, y_new,
-            epochs=100,
-            batch_size=16,
-            shuffle=False,
-            validation_split=0.1,
-            callbacks=[es],
-            verbose=1
-        )
-
     window = scaled_features[t - window_size:t]
     x_in = window.reshape(1, window_size, len(feature_cols))
 
-    p_scaledlog = model.predict(x_in, verbose=0)         
-    p_rv = pred_scaledlog_to_rv(p_scaledlog)[0]           
+    p_scaledlog = model.predict(x_in, verbose=0)
+    p_rv = pred_scaledlog_to_rv(p_scaledlog)[0]
 
     preds.append(float(p_rv))
     pred_dates.append(dates.iloc[t])
@@ -209,8 +193,8 @@ df_pred = pd.DataFrame({"Date": pred_dates, "Prediction": preds})
 
 plt.figure(figsize=(14, 6))
 plt.plot(df["Date"], df[target_col], label="RV_true", linewidth=1, alpha=0.5)
-plt.plot(df_pred["Date"], df_pred["Prediction"], label="GARCH-LSTM (logRV+QLIKE)", linewidth=2)
-plt.title("Volatility Forecasts - GARCH-LSTM (logRV + QLIKE)")
+plt.plot(df_pred["Date"], df_pred["Prediction"], label="GARCH-LSTM", linewidth=2, alpha=0.5)
+plt.title("Volatility Forecasts")
 plt.xlabel("Date")
 plt.ylabel("Realized Variance (RV)")
 plt.legend(loc="upper right")
@@ -242,4 +226,4 @@ df_full = (
       .reset_index(drop=True)
 )
 
-df_full.to_csv("GARCH_LSTM_2.csv", index=False)
+df_full.to_csv("AMZN_MSGARCH_LSTM_1.csv", index=False)
