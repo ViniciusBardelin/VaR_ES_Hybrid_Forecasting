@@ -11,13 +11,18 @@ library(xts)
 library(tidyr)
 library(highfrequency)
 
-#df <- read_excel("APPLE_DATA.xlsx")
-df <- read_excel("AMZN_DATA.xlsx")
+#df <- read_excel("AAPL_DATA.xlsx")
+#df <- read_excel("AMZN_DATA.xlsx")
+df <- read_excel("JPM_DATA.xlsx")
 df$DATE <- as.Date(df$DATE)
-#returns <- df$RETURNS_APPLE
-returns <- df$RETURNS_AMZN
+#returns <- df$RETURNS_AAPL
+#returns <- df$RETURNS_AMZN
+returns <- df$RETURNS_JPM
 
 df <- df[!apply(df, 1, function(r) any(as.character(r) == "-")), ]
+sum(df == 0, na.rm = TRUE)
+sum(returns == 0, na.rm = TRUE)
+df <- df[!apply(df[sapply(df, is.numeric)] == 0, 1, any), ]
 
 n_ins <- 2500
 n_tot <- length(returns)
@@ -120,16 +125,18 @@ for (i in 1:n_oos) {
 # InS
 df_sigma2_completo <- data.frame(
   Date = df$DATE,
-  #Returns = df$RETURNS_APPLE,
-  Returns = df$RETURNS_AMZN,
+  #Returns = df$RETURNS_AAPL,
+  #Returns = df$RETURNS_AMZN,
+  Returns = df$RETURNS_JPM,
   Sigma2_GARCH = sigma2_completo[, "GARCH"],
   Sigma2_GAS = sigma2_completo[, "GAS"],
   Sigma2_MSGARCH = sigma2_completo[, "MSGARCH"],
-  #RV_APPLE = df$RV_APPLE
-  RV_AMZN = df$RV_AMZN
+  #RV_AAPL = df$RV_AAPL
+  #RV_AMZN = df$RV_AMZN
+  RV_JPM = df$RV_JPM
 )
 
-write.csv(df_sigma2_completo, "AMZN_ins_data.csv", row.names = FALSE)
+write.csv(df_sigma2_completo, "JPM_ins_data.csv", row.names = FALSE)
 
 # OoS
 df_oos <- data.frame(
@@ -154,10 +161,11 @@ df_oos <- data.frame(
   ES_GAS_5 = ES_5[, "GAS"],
   
   #RV_APPLE = df$RV_APPLE[(n_ins + 1):n_tot]
-  RV_AMZN = df$RV_AMZN[(n_ins + 1):n_tot]
+  #RV_AMZN = df$RV_AMZN[(n_ins + 1):n_tot]
+  RV_JPM = df$RV_JPM[(n_ins + 1):n_tot]
 )
 
-write.csv(df_oos, "AMZN_oos_data.csv", row.names = FALSE)
+write.csv(df_oos, "JPM_oos_data.csv", row.names = FALSE)
 
 # Check VaR 1%
 sum(df_oos$Return < df_oos$VaR_GARCH_1)/nrow(df_oos)
@@ -174,8 +182,9 @@ sum(df_oos$Return < df_oos$VaR_GAS_5)/nrow(df_oos)
 ###########
 
 # InS
-#RV <- as.xts(df$RV_APPLE, order.by = df$DATE)
-RV <- as.xts(df$RV_AMZN, order.by = df$DATE)
+#RV <- as.xts(df$RV_AAPL, order.by = df$DATE)
+#RV <- as.xts(df$RV_AMZN, order.by = df$DATE)
+RV <- as.xts(df$RV_JPM, order.by = df$DATE)
 
 RV_ins <- RV[1:2500]
 
@@ -212,7 +221,8 @@ for (i in 1:n_oos) {
   
   sigmaHAR[i, "HAR"] <- predict(fit_HAR)
   
-  sigmaHAR_completo[i + n_ins, "HAR"] <- as.numeric(tail(fit_HAR$fitted.values, 1))
+  #sigmaHAR_completo[i + n_ins, "HAR"] <- as.numeric(tail(fit_HAR$fitted.values, 1))
+  sigmaHAR_completo[i + n_ins, "HAR"] <- as.numeric(predict(fit_HAR))
   
   rv_hat_is <- as.numeric(na.omit(fit_HAR$fitted.values))  
   r_c_is    <- returns_c[23:n_ins]                         
@@ -240,13 +250,15 @@ for (i in 1:n_oos) {
 df_sigmaHAR_completo <- data.frame(
   Date = df$DATE,
   #Returns = df$RETURNS_APPLE,
-  Returns = df$RETURNS_AMZN,
+  #Returns = df$RETURNS_AMZN,
+  Returns = df$RETURNS_JPM,
   Sigma2_HAR = sigmaHAR_completo[, "HAR"],
   #RV_APPLE = df$RV_APPLE
-  RV_AMZN = df$RV_AMZN
+  #RV_AMZN = df$RV_AMZN
+  RV_JPM = df$RV_JPM
 )
 
-write.csv(df_sigmaHAR_completo, "AMZN_ins_HAR_data.csv", row.names = FALSE)
+write.csv(df_sigmaHAR_completo, "JPM_ins_HAR_data.csv", row.names = FALSE)
 
 # OoS
 df_oos_HAR <- data.frame(
@@ -261,18 +273,12 @@ df_oos_HAR <- data.frame(
   ES_HAR_5 = ES_5[, "HAR"],
   
   #RV_APPLE = df$RV_APPLE[(n_ins + 1):n_tot]
-  RV_AMZN = df$RV_AMZN[(n_ins + 1):n_tot]
+  #RV_AMZN = df$RV_AMZN[(n_ins + 1):n_tot]
+  RV_JPM = df$RV_JPM[(n_ins + 1):n_tot]
 )
 
-write.csv(df_oos_HAR, "AMZN_oos_HAR_data.csv", row.names = FALSE)
+write.csv(df_oos_HAR, "JPM_oos_HAR_data.csv", row.names = FALSE)
 
 # Check VaR
-sum(df_oos_HAR$Return < df_oos_HAR$VaR_HAR_1)/2846 # 0.01405481
-sum(df_oos_HAR$Return < df_oos_HAR$VaR_HAR_5)/2846 # 0.05551651
-
-plot(df_sigmaHAR_completo$Sigma2_HAR, type = 'l')
-plot(df_sigma2_completo$Sigma2_GARCH, type = 'l')
-plot(df_sigma2_completo$Sigma2_MSGARCH, type = 'l')
-
-mean(na.omit(df_sigmaHAR_completo$Sigma2_HAR))
-mean(na.omit(df_sigma2_completo$Sigma2_GARCH))
+sum(df_oos_HAR$Return < df_oos_HAR$VaR_HAR_1)/2846
+sum(df_oos_HAR$Return < df_oos_HAR$VaR_HAR_5)/2846 
