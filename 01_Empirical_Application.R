@@ -7,17 +7,26 @@ library(MSGARCH)
 library(GAS)
 library(dplyr)
 library(readxl)
+library(readr)
 library(xts)
 library(tidyr)
 library(highfrequency)
+library(ggplot2)
+library(data.table)
+library(tidyverse) 
 
-#df <- read_excel("AAPL_DATA.xlsx")
+df <- read_excel("AAPL_DATA.xlsx")
 #df <- read_excel("AMZN_DATA.xlsx")
-df <- read_excel("JPM_DATA.xlsx")
+#df <- read_excel("JPM_DATA.xlsx")
+#df <- read_excel("JNJ_DATA.xlsx")
+#df <- read_excel("PG_DATA.xlsx")
+
 df$DATE <- as.Date(df$DATE)
 #returns <- df$RETURNS_AAPL
 #returns <- df$RETURNS_AMZN
-returns <- df$RETURNS_JPM
+#returns <- df$RETURNS_JPM
+returns <- df$RETURNS_JNJ
+returns <- df$RETURNS_PG
 
 df <- df[!apply(df, 1, function(r) any(as.character(r) == "-")), ]
 sum(df == 0, na.rm = TRUE)
@@ -25,7 +34,7 @@ sum(returns == 0, na.rm = TRUE)
 df <- df[!apply(df[sapply(df, is.numeric)] == 0, 1, any), ]
 
 n_ins <- 2500
-n_tot <- length(returns)
+n_tot <- nrow(df)
 n_oos <- n_tot - n_ins
 
 # Specs
@@ -184,9 +193,11 @@ sum(df_oos$Return < df_oos$VaR_GAS_5)/nrow(df_oos)
 # InS
 #RV <- as.xts(df$RV_AAPL, order.by = df$DATE)
 #RV <- as.xts(df$RV_AMZN, order.by = df$DATE)
-RV <- as.xts(df$RV_JPM, order.by = df$DATE)
+#RV <- as.xts(df$RV_JPM, order.by = df$DATE)
+#RV <- as.xts(df$RV_JNJ, order.by = df$DATE)
+RV <- as.xts(df$RV_PG, order.by = df$DATE)
 
-RV_ins <- RV[1:2500]
+RV_ins <- RV[1:n_ins]
 
 sigmaHAR_completo <- matrix(NA_real_, nrow = n_tot, ncol = 1,
                             dimnames = list(NULL, c("HAR")))
@@ -204,8 +215,7 @@ for (i in 1:n_oos) {
   
   returns_window <- returns[i:(i + n_ins - 1)]
   mu <- mean(returns_window)
-  
-  returns_c <- as.numeric(returns_window - mu)
+  returns_c <- scale(returns_window, scale = FALSE)
   
   rv_window <- as.xts(RV[i:(i + n_ins - 1)])
   
@@ -219,13 +229,14 @@ for (i in 1:n_oos) {
     inputType = "RM"
   )
   
-  sigmaHAR[i, "HAR"] <- predict(fit_HAR)
+  har_forecast <- as.numeric(predict(fit_HAR))
   
-  #sigmaHAR_completo[i + n_ins, "HAR"] <- as.numeric(tail(fit_HAR$fitted.values, 1))
-  sigmaHAR_completo[i + n_ins, "HAR"] <- as.numeric(predict(fit_HAR))
+  sigmaHAR[i, "HAR"] <- har_forecast
+  sigmaHAR_completo[i + n_ins, "HAR"] <- har_forecast
   
-  rv_hat_is <- as.numeric(na.omit(fit_HAR$fitted.values))  
-  r_c_is    <- returns_c[23:n_ins]                         
+  rv_hat_is <- as.numeric(na.omit(fit_HAR$fitted.values))
+  k <- length(rv_hat_is)
+  r_c_is <- tail(returns_c, k)                     
   
   eps <- 1e-12
   sigma_hat_is <- sqrt(pmax(rv_hat_is, eps))               
@@ -249,16 +260,20 @@ for (i in 1:n_oos) {
 # InS
 df_sigmaHAR_completo <- data.frame(
   Date = df$DATE,
-  #Returns = df$RETURNS_APPLE,
+  Returns = df$RETURNS_AAPL,
   #Returns = df$RETURNS_AMZN,
-  Returns = df$RETURNS_JPM,
+  #Returns = df$RETURNS_JPM,
+  #Returns = df$RETURNS_JNJ,
+  #Returns = df$RETURNS_PG,
   Sigma2_HAR = sigmaHAR_completo[, "HAR"],
-  #RV_APPLE = df$RV_APPLE
+  RV_APPLE = df$RV_AAPL
   #RV_AMZN = df$RV_AMZN
-  RV_JPM = df$RV_JPM
+  #RV_JPM = df$RV_JPM
+  #RV_JNJ = df$RV_JNJ
+  #RV_PG = df$RV_PG
 )
 
-write.csv(df_sigmaHAR_completo, "JPM_ins_HAR_data.csv", row.names = FALSE)
+write.csv(df_sigmaHAR_completo, "AAPL_ins_HAR_data_2.csv", row.names = FALSE)
 
 # OoS
 df_oos_HAR <- data.frame(
@@ -272,13 +287,21 @@ df_oos_HAR <- data.frame(
   VaR_HAR_5 = VaR_5[, "HAR"],
   ES_HAR_5 = ES_5[, "HAR"],
   
-  #RV_APPLE = df$RV_APPLE[(n_ins + 1):n_tot]
+  RV_AAPL = df$RV_AAPL[(n_ins + 1):n_tot]
   #RV_AMZN = df$RV_AMZN[(n_ins + 1):n_tot]
-  RV_JPM = df$RV_JPM[(n_ins + 1):n_tot]
+  #RV_JPM = df$RV_JPM[(n_ins + 1):n_tot]
+  #RV_JNJ = df$RV_JNJ[(n_ins + 1):n_tot]
+  #RV_PG = df$RV_PG[(n_ins + 1):n_tot]
 )
 
-write.csv(df_oos_HAR, "JPM_oos_HAR_data.csv", row.names = FALSE)
+write.csv(df_oos_HAR, "AAPL_oos_HAR_data_2.csv", row.names = FALSE)
 
 # Check VaR
-sum(df_oos_HAR$Return < df_oos_HAR$VaR_HAR_1)/2846
-sum(df_oos_HAR$Return < df_oos_HAR$VaR_HAR_5)/2846 
+sum(df_oos_HAR$Return < df_oos_HAR$VaR_HAR_1)/nrow(df_oos_HAR)
+sum(df_oos_HAR$Return < df_oos_HAR$VaR_HAR_5)/nrow(df_oos_HAR) 
+
+plot(df_oos_HAR$Date, df_oos_HAR$Return, type = 'l')
+lines(df_oos_HAR$Date, df_oos_HAR$VaR_HAR_1, type = 'l', col = 'red')
+
+plot(df_oos_HAR$Date, df_oos_HAR$Return, type = 'l')
+lines(df_oos_HAR$Date, df_oos_HAR$VaR_HAR_5, type = 'l', col = 'red')
