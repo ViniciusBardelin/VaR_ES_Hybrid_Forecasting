@@ -1,3 +1,7 @@
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#
+#%%%%          Backtesting           %%%%#
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#
+
 library(dplyr)
 library(readr)
 library(GAS)
@@ -6,7 +10,9 @@ library(esback)
 source("Function_VaR_VQR.R")
 source("Optimizations.R")
 
-# Univariate models backtesting
+#%%%%%%%%
+# Univariate models backtesting (joint)
+#%%%%%%%%
 df_uni_raw <- read_csv("AMZN_oos_data.csv", show_col_types = FALSE) %>%
   mutate(Date = ymd(Date))
 
@@ -140,8 +146,82 @@ viol_rates <- df_all_raw %>%
 
 print(viol_rates)
 
+#%%%%%%%%
+# HAR model backtesting only
+#%%%%%%%%
+df_har <- read_csv("AAPL_oos_HAR_data_2.csv", show_col_types = FALSE) %>%
+  mutate(Date = ymd(Date)) %>%
+  transmute(
+    Date,
+    Return = Return,
+    Vol_HAR   = Vol_HAR,
+    VaR_HAR_1 = VaR_HAR_1,
+    ES_HAR_1  = ES_HAR_1,
+    VaR_HAR_5 = VaR_HAR_5,
+    ES_HAR_5  = ES_HAR_5
+  )
+
+df_har <- na.omit(df_har)
+
+sum(is.na(df_har))
+
+100 * mean(df_har$Return < df_har$VaR_HAR_1)  
+100 * mean(df_har$Return < df_har$VaR_HAR_5) 
+
+# VaR Backtests
+Back_VaR_HAR_1 <- BacktestVaR(df_har$Return, df_har$VaR_HAR_1, 0.01)
+Back_VaR_HAR_5 <- BacktestVaR(df_har$Return, df_har$VaR_HAR_5, 0.05)
+
+pVQR_1 <- VaR_VQR(df_har$Return, df_har$VaR_HAR_1, 0.01)
+pVQR_5 <- VaR_VQR(df_har$Return, df_har$VaR_HAR_5, 0.05)
+
+# ES Backtests
+vol_har <- df_har$Vol_HAR
+
+Back_ES_CoC_HAR_1 <- cc_backtest(df_har$Return, df_har$VaR_HAR_1, df_har$ES_HAR_1, vol_har, 0.01)
+Back_ES_CoC_HAR_5 <- cc_backtest(df_har$Return, df_har$VaR_HAR_5, df_har$ES_HAR_5, vol_har, 0.05)
+
+Back_ES_ER_HAR_1 <- er_backtest(df_har$Return, df_har$VaR_HAR_1, df_har$ES_HAR_1, vol_har)
+Back_ES_ER_HAR_5 <- er_backtest(df_har$Return, df_har$VaR_HAR_5, df_har$ES_HAR_5, vol_har)
+
+Back_ES_ESR_HAR_1_V1 <- esr_backtest(df_har$Return, df_har$VaR_HAR_1, df_har$ES_HAR_1, alpha = 0.01, version = 1, B = 0)
+Back_ES_ESR_HAR_5_V1 <- esr_backtest(df_har$Return, df_har$VaR_HAR_5, df_har$ES_HAR_5, alpha = 0.05, version = 1, B = 0)
+
+# p-values table
+df_pvals_tests <- data.frame(
+  Nivel = c("1%", "5%"),
+  
+  UC  = c(Back_VaR_HAR_1$LRuc["Pvalue"], Back_VaR_HAR_5$LRuc["Pvalue"]),
+  CC  = c(Back_VaR_HAR_1$LRcc["Pvalue"], Back_VaR_HAR_5$LRcc["Pvalue"]),
+  DQ  = c(Back_VaR_HAR_1$DQ$pvalue, Back_VaR_HAR_5$DQ$pvalue),
+  VQR = c(pVQR_1, pVQR_5),
+  
+  CoC = c(Back_ES_CoC_HAR_1$pvalue_twosided_general,
+          Back_ES_CoC_HAR_5$pvalue_twosided_general),
+  
+  ER  = c(Back_ES_ER_HAR_1$pvalue_twosided_standardized,
+          Back_ES_ER_HAR_5$pvalue_twosided_standardized),
+  
+  ESR = c(Back_ES_ESR_HAR_1_V1$pvalue_twosided_asymptotic,
+          Back_ES_ESR_HAR_5_V1$pvalue_twosided_asymptotic)
+)
+
+df_pvals_tests_fmt <- df_pvals_tests
+df_pvals_tests_fmt[,-1] <- lapply(df_pvals_tests_fmt[,-1], function(x) signif(as.numeric(x), 4))
+
+options(digits = 5)
+print(df_pvals_tests_fmt)
+
+plot(df_har$Date, df_har$Return, type = 'l')
+lines(df_har$Date, df_har$VaR_HAR_1, col = 'red')
+
+plot(df_har$Date, df_har$Return, type = 'l')
+lines(df_har$Date, df_har$VaR_HAR_5, col = 'red')
+
+#%%%%%%%%
 # Hybrid backtesting
-df_lstm <- read_csv("AMZN_MSGARCH_LSTM_VaR_ES_1.csv", show_col_types = FALSE) %>%
+#%%%%%%%%
+df_lstm <- read_csv("JPM_GARCH_LSTM_VaR_ES_5.csv", show_col_types = FALSE) %>%
   mutate(
     Date = ymd(Date),
     Vol2_LSTM = RV_hat,                 
