@@ -22,11 +22,11 @@ df <- read_excel("AAPL_DATA.xlsx")
 #df <- read_excel("PG_DATA.xlsx")
 
 df$DATE <- as.Date(df$DATE)
-#returns <- df$RETURNS_AAPL
+returns <- df$RETURNS_AAPL
 #returns <- df$RETURNS_AMZN
 #returns <- df$RETURNS_JPM
-returns <- df$RETURNS_JNJ
-returns <- df$RETURNS_PG
+#returns <- df$RETURNS_JNJ
+#returns <- df$RETURNS_PG
 
 df <- df[!apply(df, 1, function(r) any(as.character(r) == "-")), ]
 sum(df == 0, na.rm = TRUE)
@@ -134,15 +134,15 @@ for (i in 1:n_oos) {
 # InS
 df_sigma2_completo <- data.frame(
   Date = df$DATE,
-  #Returns = df$RETURNS_AAPL,
+  Returns = df$RETURNS_AAPL,
   #Returns = df$RETURNS_AMZN,
-  Returns = df$RETURNS_JPM,
+  #Returns = df$RETURNS_JPM,
   Sigma2_GARCH = sigma2_completo[, "GARCH"],
   Sigma2_GAS = sigma2_completo[, "GAS"],
   Sigma2_MSGARCH = sigma2_completo[, "MSGARCH"],
-  #RV_AAPL = df$RV_AAPL
+  RV_AAPL = df$RV_AAPL
   #RV_AMZN = df$RV_AMZN
-  RV_JPM = df$RV_JPM
+  #RV_JPM = df$RV_JPM
 )
 
 write.csv(df_sigma2_completo, "JPM_ins_data.csv", row.names = FALSE)
@@ -169,9 +169,9 @@ df_oos <- data.frame(
   ES_MSGARCH_5 = ES_5[, "MSGARCH"],
   ES_GAS_5 = ES_5[, "GAS"],
   
-  #RV_APPLE = df$RV_APPLE[(n_ins + 1):n_tot]
+  RV_AAPL = df$RV_AAPL[(n_ins + 1):n_tot]
   #RV_AMZN = df$RV_AMZN[(n_ins + 1):n_tot]
-  RV_JPM = df$RV_JPM[(n_ins + 1):n_tot]
+  #RV_JPM = df$RV_JPM[(n_ins + 1):n_tot]
 )
 
 write.csv(df_oos, "JPM_oos_data.csv", row.names = FALSE)
@@ -191,11 +191,11 @@ sum(df_oos$Return < df_oos$VaR_GAS_5)/nrow(df_oos)
 ###########
 
 # InS
-#RV <- as.xts(df$RV_AAPL, order.by = df$DATE)
+RV <- as.xts(df$RV_AAPL, order.by = df$DATE)
 #RV <- as.xts(df$RV_AMZN, order.by = df$DATE)
 #RV <- as.xts(df$RV_JPM, order.by = df$DATE)
 #RV <- as.xts(df$RV_JNJ, order.by = df$DATE)
-RV <- as.xts(df$RV_PG, order.by = df$DATE)
+#RV <- as.xts(df$RV_PG, order.by = df$DATE)
 
 RV_ins <- RV[1:n_ins]
 
@@ -266,7 +266,7 @@ df_sigmaHAR_completo <- data.frame(
   #Returns = df$RETURNS_JNJ,
   #Returns = df$RETURNS_PG,
   Sigma2_HAR = sigmaHAR_completo[, "HAR"],
-  RV_APPLE = df$RV_AAPL
+  RV_AAPL = df$RV_AAPL
   #RV_AMZN = df$RV_AMZN
   #RV_JPM = df$RV_JPM
   #RV_JNJ = df$RV_JNJ
