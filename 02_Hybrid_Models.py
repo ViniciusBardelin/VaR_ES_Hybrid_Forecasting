@@ -18,15 +18,21 @@ np.random.seed(seed)
 tf.random.set_seed(seed)
 
 window_size   = 22
-initial_train = 2500
-# initial_train = 2478 -> HAR models
+#initial_train = 2500 # -> garch, msgarch, gas models
+initial_train = 2478 # -> HAR model
 eps = 1e-12
 returns_col = "Returns"
-#target_col  = "RV_AAPL"
-target_col  = "RV_AMZN"
+# Select the target
+target_col  = "RV_AAPL"
+#target_col  = "RV_JPM"
 
+# Select the data
 # df = pd.read_csv("AAPL_ins_data.csv")
-df = pd.read_csv("AMZN_ins_data.csv")
+df = pd.read_csv("AAPL_ins_HAR_data_OFC.csv")
+#df = pd.read_csv("AMZN_ins_data.csv")
+#df = pd.read_csv("JPM_ins_data.csv")
+#df = pd.read_csv("AMZN_ins_HAR_data.csv")
+
 df["Date"] = pd.to_datetime(df["Date"], format="%Y-%m-%d")
 df = df.sort_values("Date").reset_index(drop=True)
 
@@ -37,17 +43,21 @@ df[["RV_lag1", "RV_lag5"]] = df[["RV_lag1", "RV_lag5"]].bfill()
 df["AbsRet"] = df[returns_col].abs()
 df["Ret2"]   = df[returns_col] ** 2
 
+# Features
 #feature_cols = ["Sigma2_GARCH", "RV_lag1", "RV_lag5", "AbsRet", "Ret2"]
-feature_cols = ["Sigma2_MSGARCH", "RV_lag1", "RV_lag5", "AbsRet", "Ret2"]
+#feature_cols = ["Sigma2_MSGARCH", "RV_lag1", "RV_lag5", "AbsRet", "Ret2"]
+#feature_cols = ["Sigma2_GAS", "RV_lag1", "RV_lag5", "AbsRet", "Ret2"]
+feature_cols = ["Sigma2_HAR", "RV_lag1", "RV_lag5", "AbsRet", "Ret2"] # HAR models
+df = df.dropna().reset_index(drop=True)
 
-features  = df[feature_cols].values.astype(np.float32)
+features = df[feature_cols].values.astype(np.float32)
 target_rv = df[[target_col]].values.astype(np.float32).flatten()
-dates     = df["Date"]
-N         = len(df)
+dates = df["Date"]
+N = len(df)
 
 log_target = np.log(np.maximum(target_rv, eps)).astype(np.float32)
 
-scaler_X = MinMaxScaler(feature_range=(0, 1))
+scaler_X = StandardScaler()
 scaler_X.fit(features[:initial_train])
 scaled_features = scaler_X.transform(features).astype(np.float32)
 
@@ -56,7 +66,7 @@ scaler_y.fit(log_target[:initial_train].reshape(-1, 1))
 scaled_target = scaler_y.transform(log_target.reshape(-1, 1)).astype(np.float32).flatten()
 
 Y_MEAN = float(scaler_y.mean_[0])
-Y_STD  = float(scaler_y.scale_[0])
+Y_STD = float(scaler_y.scale_[0])
 
 def make_windows(X_arr, y_arr, size):
     X, y = [], []
@@ -79,7 +89,7 @@ def qlike_loss_from_scaled_log(y_true_scaled, y_pred_scaled):
     loss = rv_true / rv_hat + tf.math.log(rv_hat)
     return tf.reduce_mean(loss)
 
-val_frac  = 0.20
+val_frac = 0.20
 val_start = int(initial_train * (1 - val_frac))
 
 X_tr, y_tr = make_windows(
@@ -101,33 +111,23 @@ es = EarlyStopping(monitor="val_loss", mode="min", patience=10, restore_best_wei
 
 def build_model(input_shape):
     model = Sequential([
-        LSTM(16, activation="tanh", return_sequences=True, input_shape=input_shape),
-        LSTM(8,  activation="tanh", return_sequences=True),
-        LSTM(16, activation="tanh", return_sequences=False),
+        LSTM(16, activation="tanh", return_sequences=False, input_shape=input_shape),
         Dropout(0.2),
-        #Bidirectional(LSTM(16, return_sequences=True), input_shape=input_shape),
-        #Bidirectional(LSTM(8, return_sequences=True)),
-        #Bidirectional(LSTM(16, return_sequences=False, recurrent_dropout = 0.2)),
-        #Dropout(0.2),
-        #LSTM(64, return_sequences=True, input_shape=input_shape),
-        #LSTM(32, return_sequences=False),
-        Dense(1, activation="linear")
+        Dense(1, activation="linear") 
     ])
 
     model.compile(
-        optimizer=Adam(learning_rate=0.001),
-        loss=qlike_loss_from_scaled_log,
-        metrics=[qlike_loss_from_scaled_log]
-        
-        #loss="mse", metrics=["mse"]
+        optimizer=Adam(learning_rate=0.0005),
+        loss='mse'
     )
     return model
 
+# InS
 model = build_model((window_size, len(feature_cols)))
 history = model.fit(
     X_tr, y_tr,
     epochs=100,
-    batch_size=16,
+    batch_size=32,
     shuffle=False,
     validation_data=(X_val, y_val),
     callbacks=[es],
@@ -185,7 +185,7 @@ ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(loc))
 plt.tight_layout()
 plt.show()
 
-
+# OoS
 preds, pred_dates = [], []
 
 for t in range(initial_train, N):
@@ -211,6 +211,7 @@ plt.grid(True, linestyle="--", alpha=0.3)
 plt.tight_layout()
 plt.show()
 
+# CSV
 df_ins = pd.DataFrame({
     "Date": dates_ins.values,
     "Returns": returns_ins.astype(float),
@@ -235,4 +236,4 @@ df_full = (
       .reset_index(drop=True)
 )
 
-df_full.to_csv("AMZN_MSGARCH_LSTM_1.csv", index=False)
+df_full.to_csv("AAPL_HAR_LSTM_VaR_ES_20.csv", index=False)
